@@ -201,6 +201,6 @@ app.post("/ocr/resolve-player", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`PropPlay Montay API listening on port ${PORT}`);
 });
