@@ -20,14 +20,20 @@ const { resolvePlayersFromOcr } = require("./playerResolver");
 
 
 const app = express();
-const PORT = process.env.PORT;
+const PORT = process.env.PORT | 4001;
 
+
+var path = require ('path');
+app.use(express.static(path.join(__dirname + 'public')));
 app.use(cors());
 app.use(express.json());
 
+
+
 // Health check
 app.get("/", (req, res) => {
-  res.json({ status: "PropPlay Montay API running" });
+  res.sendFile(path.join(__dirname + '/public/') + 'index.html');
+
 });
 
 /**
