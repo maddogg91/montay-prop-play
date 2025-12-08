@@ -1,0 +1,961 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>PropPlay Montay – Player & Pick Evaluator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Tesseract.js for client-side OCR -->
+    <script src="https://unpkg.com/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+
+    <style>
+      :root {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #050816;
+        color: #f9fafb;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+
+      .app {
+        width: 100%;
+        max-width: 1100px;
+        background: radial-gradient(circle at top, #111827 0, #020617 55%, #000 100%);
+        border-radius: 24px;
+        padding: 24px 24px 28px;
+        box-shadow:
+          0 24px 60px rgba(0, 0, 0, 0.6),
+          0 0 0 1px rgba(148, 163, 184, 0.12);
+      }
+
+      .app-header {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 20px;
+        align-items: baseline;
+      }
+
+      .title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+      }
+
+      .subtitle {
+        font-size: 0.9rem;
+        color: #9ca3af;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+        gap: 20px;
+      }
+
+      @media (max-width: 900px) {
+        .grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+
+      .card {
+        background: rgba(15, 23, 42, 0.9);
+        border-radius: 18px;
+        padding: 16px 16px 18px;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+      }
+
+      .card h2 {
+        font-size: 1rem;
+        margin: 0 0 10px;
+      }
+
+      label {
+        display: block;
+        font-size: 0.8rem;
+        font-weight: 500;
+        margin-bottom: 4px;
+        color: #e5e7eb;
+      }
+
+      input[type="text"],
+      input[type="number"],
+      select {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(148, 163, 184, 0.5);
+        background: #020617;
+        color: #f9fafb;
+        font-size: 0.9rem;
+        outline: none;
+      }
+
+      input[type="file"] {
+        width: 100%;
+        font-size: 0.85rem;
+        color: #e5e7eb;
+      }
+
+      input:focus,
+      select:focus {
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.4);
+      }
+
+      .field-row {
+        display: flex;
+        gap: 10px;
+      }
+
+      .field-row > div {
+        flex: 1;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        margin-top: 10px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        border: none;
+        background: linear-gradient(135deg, #38bdf8, #6366f1);
+        color: #0f172a;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.1s ease;
+      }
+
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: default;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .btn:not(:disabled):hover {
+        filter: brightness(1.05);
+        transform: translateY(-1px);
+        box-shadow: 0 12px 30px rgba(56, 189, 248, 0.35);
+      }
+
+      .btn-secondary {
+        background: transparent;
+        border: 1px dashed rgba(148, 163, 184, 0.7);
+        color: #e5e7eb;
+        box-shadow: none;
+      }
+
+      .btn-secondary:not(:disabled):hover {
+        background: rgba(15, 23, 42, 0.9);
+        box-shadow: none;
+        transform: translateY(-1px);
+      }
+
+      .status {
+        font-size: 0.8rem;
+        margin-top: 8px;
+        min-height: 1em;
+        color: #9ca3af;
+      }
+
+      .status.error {
+        color: #fecaca;
+      }
+
+      .status.success {
+        color: #bbf7d0;
+      }
+
+      .stats-card,
+      .rating-card {
+        margin-top: 8px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.9);
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        font-size: 0.85rem;
+      }
+
+      .stats-title,
+      .rating-title {
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+
+      .stats-grid,
+      .rating-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px 14px;
+      }
+
+      .stat-label {
+        color: #9ca3af;
+      }
+
+      .stat-value {
+        font-weight: 500;
+      }
+
+      .rating-main-label {
+        font-size: 0.95rem;
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+
+      .rating-main-label.green {
+        color: #bbf7d0;
+      }
+
+      .rating-main-label.yellow {
+        color: #fde68a;
+      }
+
+      .rating-main-label.red {
+        color: #fecaca;
+      }
+
+      .rating-main-label.neutral {
+        color: #e5e7eb;
+      }
+
+      .ocr-preview {
+        margin-top: 8px;
+        font-size: 0.75rem;
+        max-height: 90px;
+        overflow: auto;
+        padding: 8px;
+        border-radius: 10px;
+        background: #020617;
+        border: 1px dashed rgba(55, 65, 81, 0.9);
+        color: #9ca3af;
+        white-space: pre-wrap;
+      }
+
+      .hint {
+        font-size: 0.75rem;
+        color: #9ca3af;
+        margin-top: 4px;
+      }
+
+      .history-list {
+        margin-top: 6px;
+        font-size: 0.8rem;
+        max-height: 180px;
+        overflow-y: auto;
+      }
+
+      .history-item {
+        padding: 6px 0;
+        border-bottom: 1px solid rgba(31, 41, 55, 0.9);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        font-weight: 600;
+      }
+
+      .pill.more {
+        background: rgba(34, 197, 94, 0.12);
+        color: #bbf7d0;
+      }
+
+      .pill.less {
+        background: rgba(248, 113, 113, 0.12);
+        color: #fecaca;
+      }
+
+      .pill-neutral {
+        background: rgba(148, 163, 184, 0.12);
+        color: #e5e7eb;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="app">
+      <div class="app-header">
+        <div class="title">PropPlay Montay – Player & Pick Evaluator</div>
+        <div class="subtitle">
+          Look up NBA players via Sportradar + evaluate props with your Montay engine. Type or OCR a slip.
+        </div>
+      </div>
+
+      <div class="grid">
+        <!-- Left side: Manual input + rating -->
+        <div class="card">
+          <h2>1. Player & pick</h2>
+          <form id="player-form" onsubmit="return false;">
+            <div>
+              <label for="playerName">Player name</label>
+              <input
+                id="playerName"
+                type="text"
+                placeholder="e.g. Jalen Johnson"
+                autocomplete="off"
+                required
+              />
+            </div>
+
+            <div class="field-row" style="margin-top: 8px">
+              <div>
+                <label for="teamAbbr">Team (abbr)</label>
+                <select id="teamAbbr" required>
+                  <option value="">Team</option>
+                  <option value="ATL">ATL – Hawks</option>
+                  <option value="BOS">BOS – Celtics</option>
+                  <option value="BKN">BKN – Nets</option>
+                  <option value="CHA">CHA – Hornets</option>
+                  <option value="CHI">CHI – Bulls</option>
+                  <option value="CLE">CLE – Cavaliers</option>
+                  <option value="DAL">DAL – Mavericks</option>
+                  <option value="DEN">DEN – Nuggets</option>
+                  <option value="DET">DET – Pistons</option>
+                  <option value="GSW">GSW – Warriors</option>
+                  <option value="HOU">HOU – Rockets</option>
+                  <option value="IND">IND – Pacers</option>
+                  <option value="LAC">LAC – Clippers</option>
+                  <option value="LAL">LAL – Lakers</option>
+                  <option value="MEM">MEM – Grizzlies</option>
+                  <option value="MIA">MIA – Heat</option>
+                  <option value="MIL">MIL – Bucks</option>
+                  <option value="MIN">MIN – Timberwolves</option>
+                  <option value="NOP">NOP – Pelicans</option>
+                  <option value="NYK">NYK – Knicks</option>
+                  <option value="OKC">OKC – Thunder</option>
+                  <option value="ORL">ORL – Magic</option>
+                  <option value="PHI">PHI – 76ers</option>
+                  <option value="PHX">PHX – Suns</option>
+                  <option value="POR">POR – Trail Blazers</option>
+                  <option value="SAC">SAC – Kings</option>
+                  <option value="SAS">SAS – Spurs</option>
+                  <option value="TOR">TOR – Raptors</option>
+                  <option value="UTA">UTA – Jazz</option>
+                  <option value="WAS">WAS – Wizards</option>
+                </select>
+              </div>
+
+              <div>
+                <label for="opponentAbbr">Opponent (abbr)</label>
+                <select id="opponentAbbr">
+                  <option value="">Opponent</option>
+                  <option value="ATL">ATL – Hawks</option>
+                  <option value="BOS">BOS – Celtics</option>
+                  <option value="BKN">BKN – Nets</option>
+                  <option value="CHA">CHA – Hornets</option>
+                  <option value="CHI">CHI – Bulls</option>
+                  <option value="CLE">CLE – Cavaliers</option>
+                  <option value="DAL">DAL – Mavericks</option>
+                  <option value="DEN">DEN – Nuggets</option>
+                  <option value="DET">DET – Pistons</option>
+                  <option value="GSW">GSW – Warriors</option>
+                  <option value="HOU">HOU – Rockets</option>
+                  <option value="IND">IND – Pacers</option>
+                  <option value="LAC">LAC – Clippers</option>
+                  <option value="LAL">LAL – Lakers</option>
+                  <option value="MEM">MEM – Grizzlies</option>
+                  <option value="MIA">MIA – Heat</option>
+                  <option value="MIL">MIL – Bucks</option>
+                  <option value="MIN">MIN – Timberwolves</option>
+                  <option value="NOP">NOP – Pelicans</option>
+                  <option value="NYK">NYK – Knicks</option>
+                  <option value="OKC">OKC – Thunder</option>
+                  <option value="ORL">ORL – Magic</option>
+                  <option value="PHI">PHI – 76ers</option>
+                  <option value="PHX">PHX – Suns</option>
+                  <option value="POR">POR – Trail Blazers</option>
+                  <option value="SAC">SAC – Kings</option>
+                  <option value="SAS">SAS – Spurs</option>
+                  <option value="TOR">TOR – Raptors</option>
+                  <option value="UTA">UTA – Jazz</option>
+                  <option value="WAS">WAS – Wizards</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field-row" style="margin-top: 10px">
+              <div>
+                <label for="statType">Stat type</label>
+                <select id="statType">
+                  <option value="">Select stat</option>
+                  <option value="PTS">PTS</option>
+                  <option value="REB">REB</option>
+                  <option value="AST">AST</option>
+                  <option value="PRA">PRA</option>
+                  <option value="3PM">3PM</option>
+                </select>
+              </div>
+              <div>
+                <label for="lineValue">Line</label>
+                <input
+                  id="lineValue"
+                  type="number"
+                  step="0.5"
+                  placeholder="e.g. 23.5"
+                />
+              </div>
+              <div>
+                <label for="playType">Play</label>
+                <select id="playType">
+                  <option value="MORE">MORE</option>
+                  <option value="LESS">LESS</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:8px; margin-top:12px;">
+              <button type="button" class="btn" id="search-btn">
+                🔍 Fetch Stats
+              </button>
+              <button type="button" class="btn btn-secondary" id="evaluate-btn">
+                🎯 Evaluate Pick
+              </button>
+            </div>
+
+            <div id="player-status" class="status"></div>
+          </form>
+
+          <div id="player-stats" class="stats-card" style="display: none"></div>
+          <div id="pick-rating" class="rating-card" style="display: none"></div>
+        </div>
+
+        <!-- Right: screenshot upload + OCR suggestions + history -->
+        <div class="card">
+          <h2>2. Screenshot OCR & history</h2>
+          <p class="hint">
+            Upload a slip screenshot. We'll OCR it locally, send text to the backend, and suggest matching NBA players.
+          </p>
+
+          <input id="screenshot-input" type="file" accept="image/*" />
+          <button class="btn btn-secondary" id="ocr-btn" disabled>
+            📷 Run OCR & Resolve Player
+          </button>
+          <div id="ocr-status" class="status"></div>
+          <div id="ocr-preview" class="ocr-preview" style="display: none"></div>
+
+          <div id="ocr-suggestions" class="history-list" style="margin-top:8px;"></div>
+
+          <div style="margin-top:14px; border-top:1px solid rgba(31,41,55,0.8); padding-top:10px;">
+            <h2>Recent evaluations</h2>
+            <div class="hint">
+              Last few props you’ve run through Montay on this page.
+            </div>
+            <div id="history" class="history-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ⬇️ Adjust if your backend runs elsewhere
+      const API_BASE = "http://localhost:4001";
+
+      const playerNameInput = document.getElementById("playerName");
+      const teamAbbrSelect = document.getElementById("teamAbbr");
+      const opponentAbbrSelect = document.getElementById("opponentAbbr");
+      const statTypeSelect = document.getElementById("statType");
+      const lineInput = document.getElementById("lineValue");
+      const playTypeSelect = document.getElementById("playType");
+
+      const searchBtn = document.getElementById("search-btn");
+      const evalBtn = document.getElementById("evaluate-btn");
+      const playerStatus = document.getElementById("player-status");
+      const playerStatsEl = document.getElementById("player-stats");
+      const pickRatingEl = document.getElementById("pick-rating");
+
+      const screenshotInput = document.getElementById("screenshot-input");
+      const ocrBtn = document.getElementById("ocr-btn");
+      const ocrStatus = document.getElementById("ocr-status");
+      const ocrPreview = document.getElementById("ocr-preview");
+      const ocrSuggestions = document.getElementById("ocr-suggestions");
+
+      const historyEl = document.getElementById("history");
+
+      let screenshotFile = null;
+      let evalHistory = [];
+
+function extractTwoWordName(rawText) {
+  if (!rawText) return "";
+
+  // Normalize noisy OCR text
+  let text = rawText
+    .replace(/[^a-zA-Z\s'-]/g, " ") // remove digits/punctuation
+    .replace(/\s+/g, " ")           // collapse whitespace
+    .trim();
+
+  if (!text) return "";
+
+  // Split into individual words
+  const words = text.split(" ").filter(w => /^[A-Za-z'-]+$/.test(w));
+
+  if (words.length === 0) return "";
+
+  // If we found 2+ words, choose the BEST two:
+  if (words.length >= 2) {
+    // Heuristic: choose the two longest alphabetic words.
+    // This tends to give "Dyson Daniels" from noisy OCR.
+    const sorted = [...words].sort((a, b) => b.length - a.length);
+    return words[0] + " " + words[1];
+  }
+
+  // If only one word detected, return it (backend fuzzy match can help)
+  return words[0];
+}
+
+
+async function runOcrOnPlayerRegion(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = async () => {
+      try {
+        const w = img.naturalWidth || img.width;
+        const h = img.naturalHeight || img.height;
+
+        // Heuristic crop tuned for PrizePicks-style cards:
+        // - left 18% of width (skip avatar)
+        // - top 5% of height
+        // - width 70% (up to right panel)
+        // - height 35–40% (name row + a bit under)
+        const srcX = w * 0.18;
+        const srcY = h * 0.05;
+        const srcW = w * 0.70;
+        const srcH = h * 0.38;
+
+        const canvas = document.createElement("canvas");
+        const scale = 2.2; // upscale for sharper text
+        canvas.width = srcW * scale;
+        canvas.height = srcH * scale;
+
+        const ctx = canvas.getContext("2d");
+        ctx.imageSmoothingEnabled = true;
+
+        // Draw cropped & upscaled
+        ctx.drawImage(
+          img,
+          srcX,
+          srcY,
+          srcW,
+          srcH,
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
+
+        // Optional: mild contrast / brightness boost
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        const contrast = 1.35;
+        const brightness = 8;
+        for (let i = 0; i < data.length; i += 4) {
+          let r = data[i];
+          let g = data[i + 1];
+          let b = data[i + 2];
+
+          r = Math.min(255, Math.max(0, (r - 128) * contrast + 128 + brightness));
+          g = Math.min(255, Math.max(0, (g - 128) * contrast + 128 + brightness));
+          b = Math.min(255, Math.max(0, (b - 128) * contrast + 128 + brightness));
+
+          data[i] = r;
+          data[i + 1] = g;
+          data[i + 2] = b;
+        }
+        ctx.putImageData(imageData, 0, 0);
+
+        canvas.toBlob(async (blob) => {
+          if (!blob) return reject(new Error("Canvas blob failed"));
+
+          const { data } = await Tesseract.recognize(blob, "eng", {
+            // Treat it like one (or a few) text lines
+            psm: 7,
+            tessedit_char_whitelist:
+              "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz .'-",
+            preserve_interword_spaces: "1"
+          });
+
+          resolve(data.text || "");
+        }, "image/png");
+      } catch (e) {
+        reject(e);
+      }
+    };
+
+    img.onerror = (e) => reject(new Error("Failed to load image"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+      // ---- Player stats lookup ----
+      async function fetchPlayerStats(playerName, teamAbbr) {
+        playerStatus.textContent = "Fetching stats...";
+        playerStatus.className = "status";
+        playerStatsEl.style.display = "none";
+        searchBtn.disabled = true;
+
+        try {
+          const res = await fetch(`${API_BASE}/nba/player-stats`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ playerName, team: teamAbbr })
+          });
+
+          const data = await res.json();
+
+          if (!res.ok || data.status !== "OK") {
+            throw new Error(data.message || "Request failed");
+          }
+
+          renderPlayerStats(data.player);
+          playerStatus.textContent = "Stats loaded.";
+          playerStatus.className = "status success";
+        } catch (err) {
+          console.error(err);
+          playerStatus.textContent = `Error: ${err.message}`;
+          playerStatus.className = "status error";
+          playerStatsEl.style.display = "none";
+        } finally {
+          searchBtn.disabled = false;
+        }
+      }
+
+      function renderPlayerStats(player) {
+        if (!player || !player.season) {
+          playerStatsEl.style.display = "none";
+          return;
+        }
+
+        const s = player.season;
+        const pts = s.PTS ?? "—";
+        const reb = s.REB ?? "—";
+        const ast = s.AST ?? "—";
+        const pra =
+          s.PRA ??
+          (typeof pts === "number" && typeof reb === "number" && typeof ast === "number"
+            ? (pts + reb + ast).toFixed(1)
+            : "—");
+        const mins = player.minutes != null ? player.minutes.toFixed(1) : "—";
+
+        playerStatsEl.innerHTML = `
+          <div class="stats-title">${player.name} (${player.team}) – Season Averages</div>
+          <div class="stats-grid">
+            <div><span class="stat-label">PTS:</span> <span class="stat-value">${pts}</span></div>
+            <div><span class="stat-label">REB:</span> <span class="stat-value">${reb}</span></div>
+            <div><span class="stat-label">AST:</span> <span class="stat-value">${ast}</span></div>
+            <div><span class="stat-label">PRA:</span> <span class="stat-value">${pra}</span></div>
+            <div><span class="stat-label">MIN:</span> <span class="stat-value">${mins}</span></div>
+          </div>
+          <div class="hint" style="margin-top:8px;">
+            These are season averages from your Sportradar-backed cache (Players_DB).
+          </div>
+        `;
+        playerStatsEl.style.display = "block";
+      }
+
+      // ---- Pick evaluation ----
+      async function evaluatePick() {
+        const playerName = playerNameInput.value.trim();
+        const teamAbbr = teamAbbrSelect.value.trim();
+        const opponentAbbr = opponentAbbrSelect.value.trim();
+        const statType = statTypeSelect.value.trim();
+        const lineVal = parseFloat(lineInput.value);
+        const playType = playTypeSelect.value;
+
+        pickRatingEl.style.display = "none";
+
+        if (!playerName || !teamAbbr) {
+          playerStatus.textContent = "Player name and team are required to evaluate.";
+          playerStatus.className = "status error";
+          return;
+        }
+
+        if (!statType || Number.isNaN(lineVal)) {
+          playerStatus.textContent = "Stat type and line are required to evaluate.";
+          playerStatus.className = "status error";
+          return;
+        }
+
+        if (!opponentAbbr) {
+          playerStatus.textContent = "Opponent is recommended for full matchup logic.";
+          playerStatus.className = "status";
+        }
+
+        evalBtn.disabled = true;
+        playerStatus.textContent = "Evaluating pick with Montay engine...";
+        playerStatus.className = "status";
+
+        try {
+          const res = await fetch(`${API_BASE}/evaluate-pick`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              playerName,
+              team: teamAbbr,
+              opponent: opponentAbbr || teamAbbr, // fallback to same team if no opponent selected
+              statType,
+              line: lineVal,
+              playType
+            })
+          });
+
+          const data = await res.json();
+
+          if (!res.ok || data.status !== "OK") {
+            throw new Error(data.message || "Request failed");
+          }
+
+          renderPickRating(data);
+          pushHistory(data);
+          playerStatus.textContent = "Pick evaluated.";
+          playerStatus.className = "status success";
+        } catch (err) {
+          console.error(err);
+          playerStatus.textContent = `Error evaluating pick: ${err.message}`;
+          playerStatus.className = "status error";
+          pickRatingEl.style.display = "none";
+        } finally {
+          evalBtn.disabled = false;
+        }
+      }
+
+      function ratingColorClass(systemRating) {
+        if (!systemRating) return "neutral";
+        if (systemRating.startsWith("GREEN")) return "green";
+        if (systemRating.startsWith("YELLOW")) return "yellow";
+        if (systemRating.startsWith("RED")) return "red";
+        return "neutral";
+      }
+
+      function renderPickRating(result) {
+        const {
+          playerName,
+          team,
+          opponent,
+          statType,
+          line,
+          playType,
+          systemRating,
+          last5Avg,
+          seasonAvg,
+          last5Diff,
+          seasonDiff,
+          baseScore,
+          matchupRank,
+          matchupMultiplier,
+          minutes,
+          minutesMultiplier,
+          finalScore,
+          scoreForPick
+        } = result;
+
+        const colorClass = ratingColorClass(systemRating);
+
+        const safe = (val, digits = 2) =>
+          typeof val === "number" && !Number.isNaN(val) ? val.toFixed(digits) : "—";
+
+        pickRatingEl.innerHTML = `
+          <div class="rating-title">
+            ${playerName} (${team}) vs ${opponent || "?"} – ${statType} ${line} (${playType})
+          </div>
+          <div class="rating-main-label ${colorClass}">
+            ${systemRating || "No rating"}
+          </div>
+          <div class="rating-grid">
+            <div><span class="stat-label">Last5 Avg:</span> <span class="stat-value">${safe(last5Avg)}</span></div>
+            <div><span class="stat-label">Season Avg:</span> <span class="stat-value">${safe(seasonAvg)}</span></div>
+            <div><span class="stat-label">Last5 Diff:</span> <span class="stat-value">${safe(last5Diff)}</span></div>
+            <div><span class="stat-label">Season Diff:</span> <span class="stat-value">${safe(seasonDiff)}</span></div>
+            <div><span class="stat-label">BaseScore:</span> <span class="stat-value">${safe(baseScore)}</span></div>
+            <div><span class="stat-label">Final Score:</span> <span class="stat-value">${safe(finalScore)}</span></div>
+            <div><span class="stat-label">Score For Pick:</span> <span class="stat-value">${safe(scoreForPick)}</span></div>
+            <div><span class="stat-label">Matchup Rank:</span> <span class="stat-value">${matchupRank ?? "—"}</span></div>
+            <div><span class="stat-label">Matchup Mult:</span> <span class="stat-value">${safe(matchupMultiplier)}</span></div>
+            <div><span class="stat-label">Minutes:</span> <span class="stat-value">${minutes != null ? safe(minutes, 1) : "—"}</span></div>
+            <div><span class="stat-label">Minutes Mult:</span> <span class="stat-value">${safe(minutesMultiplier)}</span></div>
+          </div>
+          <div class="hint" style="margin-top:8px;">
+            Score For Pick is after matchup + minutes and MORE/LESS flip. Your color label comes from this.
+          </div>
+        `;
+        pickRatingEl.style.display = "block";
+      }
+
+      function pushHistory(result) {
+        const item = {
+          playerName: result.playerName,
+          team: result.team,
+          opponent: result.opponent,
+          statType: result.statType,
+          line: result.line,
+          playType: result.playType,
+          systemRating: result.systemRating,
+          scoreForPick: result.scoreForPick
+        };
+
+        evalHistory.unshift(item);
+        if (evalHistory.length > 8) evalHistory.pop();
+
+        renderHistory();
+      }
+
+      function renderHistory() {
+        if (!evalHistory.length) {
+          historyEl.innerHTML = `<div class="hint">No evaluations yet on this page.</div>`;
+          return;
+        }
+
+        historyEl.innerHTML = evalHistory
+          .map((h) => {
+            const colorClass = ratingColorClass(h.systemRating);
+            const score =
+              typeof h.scoreForPick === "number" && !Number.isNaN(h.scoreForPick)
+                ? h.scoreForPick.toFixed(2)
+                : "—";
+            return `
+              <div class="history-item">
+                <div>
+                  <strong>${h.playerName}</strong> (${h.team} vs ${h.opponent || "?"}) – ${
+              h.statType
+            } ${h.line}
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2px;">
+                  <div>
+                    <span class="pill ${h.playType === "MORE" ? "more" : "less"}">${h.playType}</span>
+                    <span style="margin-left:6px; font-size:0.75rem;" class="${colorClass}">
+                      ${h.systemRating}
+                    </span>
+                  </div>
+                  <div style="font-size:0.75rem; color:#9ca3af;">
+                    Score: ${score}
+                  </div>
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      // ---- Manual buttons ----
+      searchBtn.addEventListener("click", () => {
+        const name = playerNameInput.value.trim();
+        const team = teamAbbrSelect.value.trim();
+
+        if (!name || !team) {
+          playerStatus.textContent = "Enter a player name and select a team to fetch stats.";
+          playerStatus.className = "status error";
+          return;
+        }
+
+        fetchPlayerStats(name, team);
+      });
+
+      evalBtn.addEventListener("click", () => {
+        evaluatePick();
+      });
+
+      // ---- Screenshot + OCR ----
+      screenshotInput.addEventListener("change", (e) => {
+        const file = e.target.files?.[0];
+        screenshotFile = file || null;
+        ocrPreview.style.display = "none";
+        ocrPreview.textContent = "";
+        ocrStatus.textContent = "";
+        ocrSuggestions.innerHTML = "";
+
+        if (screenshotFile) {
+          ocrBtn.disabled = false;
+          ocrStatus.textContent = "Ready to run OCR.";
+        } else {
+          ocrBtn.disabled = true;
+        }
+      });
+
+      function renderOcrSuggestions(matches) {
+        if (!matches || !matches.length) {
+          ocrSuggestions.innerHTML =
+            '<div class="hint">No matching players found from OCR. Edit name and team manually.</div>';
+          return;
+        }
+
+        ocrSuggestions.innerHTML = matches;
+
+ }       
+
+ocrBtn.addEventListener("click", () => {
+  if (!screenshotFile) return;
+
+  ocrBtn.disabled = true;
+  ocrStatus.textContent = "Running OCR on screenshot (name region)...";
+  ocrStatus.className = "status";
+  ocrPreview.style.display = "none";
+  ocrPreview.textContent = "";
+  ocrSuggestions.innerHTML = "";
+
+  runOcrOnPlayerRegion(screenshotFile)
+    .then(async (text) => {
+      ocrPreview.textContent = text.slice(0, 1500);
+      ocrPreview.style.display = text ? "block" : "none";
+      const cleanedName = extractTwoWordName(text);
+
+        ocrStatus.textContent = cleanedName
+    ? `Name candidate: "${cleanedName}". Resolving...`
+    : `OCR text received. Attempting player match...`;
+
+      try {
+        const res = await fetch(`${API_BASE}/ocr/resolve-player`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ocrText: cleanedName })
+        });
+        const payload = await res.json();
+        if (!res.ok || payload.status !== "OK") {
+          throw new Error(payload.message || "Resolve failed");
+        }
+        console.log(payload);
+        renderOcrSuggestions(payload.matches);
+        if (payload.matches) {
+          playerNameInput.value = payload.matches.name;
+          ocrStatus.textContent = `Top guess: ${top.name}). Click another suggestion if needed.`;
+          ocrStatus.className = "status success";
+        } else {
+          ocrStatus.textContent =
+            "No strong matches; edit name/team manually and then fetch stats or evaluate.";
+          ocrStatus.className = "status error";
+        }
+      } catch (err) {
+        console.error(err);
+        ocrStatus.textContent = `Resolve error: ${err.message}`;
+        ocrStatus.className = "status error";
+      }
+    })
+    .catch((err) => {
+      console.error(err);
+      ocrStatus.textContent = `OCR error: ${err.message}`;
+      ocrStatus.className = "status error";
+    })
+    .finally(() => {
+      ocrBtn.disabled = false;
+    });
+});
+
+      // Initial history render
+      renderHistory();
+    </script>
+  </body>
+</html>
