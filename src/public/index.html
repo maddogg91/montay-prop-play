@@ -465,7 +465,7 @@
 
     <script>
       // ⬇️ Adjust if your backend runs elsewhere
-      const API_BASE = "http://localhost:4001";
+      const API_BASE = window.location.href;
 
       const playerNameInput = document.getElementById("playerName");
       const teamAbbrSelect = document.getElementById("teamAbbr");
@@ -610,7 +610,7 @@ async function runOcrOnPlayerRegion(file) {
         searchBtn.disabled = true;
 
         try {
-          const res = await fetch(`${API_BASE}/nba/player-stats`, {
+          const res = await fetch(API_BASE + 'nba/player-stats', {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ playerName, team: teamAbbr })
@@ -701,7 +701,7 @@ async function runOcrOnPlayerRegion(file) {
         playerStatus.className = "status";
 
         try {
-          const res = await fetch(`${API_BASE}/evaluate-pick`, {
+          const res = await fetch(API_BASE + 'evaluate-pick', {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -918,7 +918,7 @@ ocrBtn.addEventListener("click", () => {
     : `OCR text received. Attempting player match...`;
 
       try {
-        const res = await fetch(`${API_BASE}/ocr/resolve-player`, {
+        const res = await fetch(API_BASE+ 'ocr/resolve-player', {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ocrText: cleanedName })
